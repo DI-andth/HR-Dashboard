@@ -240,10 +240,10 @@ if page == "Executive Dashboard":
             <div class="bg-white border border-outline-variant rounded-xl p-6 text-center shadow-sm hover-card"><span class="material-symbols-outlined text-orange-600 text-3xl mb-2">timer</span><h4 class="font-semibold mb-2">Thử việc</h4><p class="text-3xl font-bold">{pct_thu_viec}%</p><p class="text-xs text-on-surface-variant mt-1">{thu_viec} NV</p></div>
             <div class="bg-white border border-outline-variant rounded-xl p-6 text-center shadow-sm hover-card"><span class="material-symbols-outlined text-gray-500 text-3xl mb-2">handshake</span><h4 class="font-semibold mb-2">CTV</h4><p class="text-3xl font-bold">{pct_ctv}%</p><p class="text-xs text-on-surface-variant mt-1">{ctv} NV</p></div>
         </div>
-        <div class="bg-white border border-outline-variant rounded-xl p-6 shadow-sm delay-3 animate-fade-in"><h3 class="text-lg font-bold mb-6">Phân bổ theo Phòng ban</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div>{dept_html_col1}</div><div>{dept_html_col2}</div></div></div>
+        <h3 class="text-lg font-bold mb-6">Phân bổ theo Phòng ban</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto custom-scrollbar pr-2" style="max-height: 250px;"><div>{dept_html_col1}</div><div>{dept_html_col2}</div></div></div>
     </body></html>
     """
-    components.html(html_p1, height=1050, scrolling=True)
+    components.html(html_p1, height=1150, scrolling=True)
 
 # ==========================================
 # TRANG 2: WORKFORCE ANALYTICS
