@@ -74,20 +74,20 @@ def get_tinh(address):
     if not parts: return 'Chưa xác định'
     return re.sub(r'^(tp\.|thành phố|tỉnh)\s+', '', parts[-1], flags=re.IGNORECASE).strip().title()
 
+def get_dynamic_font(text):
+    if len(str(text)) <= 15: return "text-3xl"
+    elif len(str(text)) <= 25: return "text-2xl"
+    else: return "text-xl"
+
 # ==========================================
 # 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
 # ==========================================
 @st.cache_data
 def load_data():
     df = pd.read_excel('DataNhansuFinal.xlsx')
-    
-    # Sửa lỗi Tên phòng ban
-    if 'Phòng ban' in df.columns: 
-        df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
-        
+    if 'Phòng ban' in df.columns: df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
     df.columns = df.columns.str.replace('\n', ' ', regex=True).str.strip()
-    if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: 
-        df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
+    if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
         
     for col in ['Tuổi', 'Thâm niên 1']:
         if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -102,8 +102,7 @@ def load_data():
     if 'Ngày làm việc cuối cùng' in df.columns:
         df['Năm nghỉ'] = df['Ngày làm việc cuối cùng'].dt.year
         df['Tháng nghỉ'] = df['Ngày làm việc cuối cùng'].dt.month
-    if 'Ngày sinh' in df.columns: 
-        df['Tháng sinh'] = df['Ngày sinh'].dt.month
+    if 'Ngày sinh' in df.columns: df['Tháng sinh'] = df['Ngày sinh'].dt.month
     
     if 'Thâm niên 1' in df.columns: df['Nhóm thâm niên'] = pd.cut(df['Thâm niên 1'], bins=[-1, 0.5, 1, 3, 5, 10, 100], labels=['<6m', '6-12m', '1-3y', '3-5y', '5-10y', '>10y']).astype(object)
     if 'Tuổi' in df.columns: df['Nhóm tuổi'] = pd.cut(df['Tuổi'], bins=[0, 24, 30, 35, 40, 100], labels=['<25', '25-30', '31-35', '36-40', '>40']).astype(object)
@@ -116,12 +115,15 @@ def load_data():
 
 df = load_data()
 
-# --- XÓA SẠCH DẤU VẾT CỦA PN-000 ---
+# --- BỘ LỌC DỮ LIỆU GỐC (LOẠI BỎ MSNV ẢO/NGHỈ TRƯỚC) ---
 if 'MSNV' in df.columns:
-    df = df[df['MSNV'].astype(str).str.strip().str.upper() != 'PN-000'].copy()
+    # Xoá các nhân sự không mong muốn khỏi toàn bộ báo cáo
+    danh_sach_loai_tru = ['PN-000', 'IPC-039']
+    df = df[~df['MSNV'].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
+
 
 # ==========================================
-# 3. SIDEBAR & LỌC ĐỘNG TOÀN CỤC
+# 3. SIDEBAR & LỌC TOÀN CỤC
 # ==========================================
 with st.sidebar:
     st.markdown("## 🏢 Enterprise HR")
@@ -146,12 +148,7 @@ with st.sidebar:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("""<style>div[data-testid="stButton"] button {background-color: #0045d3; color: white; width: 100%; border-radius: 8px; border: none; font-weight: 600; padding: 10px 0;} div[data-testid="stButton"] button:hover { background-color: #3260ec; color: white; }</style>""", unsafe_allow_html=True)
     if st.button("Xuất Báo Cáo", use_container_width=True): st.success("✅ Đã xuất báo cáo!")
-    
-    sidebar_footer = """
-    <style>.sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-family: 'Inter', sans-serif; font-size: 14px; color: #434655; font-weight: 500;} .sb-item:hover { background-color: #f5f3f4; color: #1b1c1d; } .sb-icon { font-size: 20px; } .sb-logout { color: #ba1a1a; margin-top: 4px;} .sb-logout:hover { background-color: #ffe4e6; color: #93000a; } .sb-divider { border-top: 1px solid #e2e8f0; margin: 15px 0 10px 0; }</style>
-    <div class="sb-divider"></div><div class="sb-item"><span class="material-symbols-outlined sb-icon">settings</span><span>Cài đặt (Settings)</span></div><div class="sb-item sb-logout"><span class="material-symbols-outlined sb-icon">logout</span><span>Đăng xuất</span></div>
-    """
-    st.markdown(sidebar_footer, unsafe_allow_html=True)
+    st.markdown("""<style>.sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-family: 'Inter', sans-serif; font-size: 14px; color: #434655; font-weight: 500;} .sb-item:hover { background-color: #f5f3f4; color: #1b1c1d; } .sb-icon { font-size: 20px; } .sb-logout { color: #ba1a1a; margin-top: 4px;} .sb-logout:hover { background-color: #ffe4e6; color: #93000a; } .sb-divider { border-top: 1px solid #e2e8f0; margin: 15px 0 10px 0; }</style><div class="sb-divider"></div><div class="sb-item"><span class="material-symbols-outlined sb-icon">settings</span><span>Cài đặt (Settings)</span></div><div class="sb-item sb-logout"><span class="material-symbols-outlined sb-icon">logout</span><span>Đăng xuất</span></div>""", unsafe_allow_html=True)
 
 # ==========================================
 # 4. TÍNH TOÁN CÁC BIẾN TOÀN CỤC CHỐNG LỖI
@@ -195,13 +192,9 @@ retention_rate = round(100 - turnover_rate, 1) if turnover_rate <= 100 else 0
 
 age_mean = pd.to_numeric(df_active['Tuổi'], errors='coerce').mean() if 'Tuổi' in df_active.columns else 0
 avg_age = round(age_mean, 1) if pd.notna(age_mean) else 0
+
 sen_mean = pd.to_numeric(df_active['Thâm niên 1'], errors='coerce').mean() if 'Thâm niên 1' in df_active.columns else 0
 avg_seniority = round(sen_mean, 1) if pd.notna(sen_mean) else 0
-
-def get_dynamic_font(text):
-    if len(str(text)) <= 15: return "text-3xl"
-    elif len(str(text)) <= 25: return "text-2xl"
-    else: return "text-xl"
 
 
 # ==========================================
@@ -237,7 +230,7 @@ if page == "Executive Dashboard":
     dept_html_col1, dept_html_col2 = "", ""
     if 'Phòng ban' in df_active.columns:
         dept_counts = df_active['Phòng ban'].value_counts()
-        half_point = (len(dept_counts) + 1) // 2 
+        half_point = (len(dept_counts) + 1) // 2
         colors = ['bg-primary', 'bg-secondary', 'bg-primary-container', 'bg-outline-variant', 'bg-surface-variant', 'bg-surface-container-high']
         for i, (dept, count) in enumerate(dept_counts.items()):
             pct = int((count / total_emp) * 100) if total_emp > 0 else 0
@@ -261,15 +254,14 @@ if page == "Executive Dashboard":
             <div class="bg-white border border-outline-variant rounded-xl p-6 text-center shadow-sm hover-card"><span class="material-symbols-outlined text-orange-600 text-3xl mb-2">timer</span><h4 class="font-semibold mb-2">Thử việc</h4><p class="text-3xl font-bold">{pct_thu_viec}%</p><p class="text-xs text-on-surface-variant mt-1">{thu_viec} NV</p></div>
             <div class="bg-white border border-outline-variant rounded-xl p-6 text-center shadow-sm hover-card"><span class="material-symbols-outlined text-gray-500 text-3xl mb-2">handshake</span><h4 class="font-semibold mb-2">CTV</h4><p class="text-3xl font-bold">{pct_ctv}%</p><p class="text-xs text-on-surface-variant mt-1">{ctv} NV</p></div>
         </div>
-        <div class="bg-white border border-outline-variant rounded-xl p-6 shadow-sm delay-3 animate-fade-in"><h3 class="text-lg font-bold mb-6">Phân bổ theo Phòng ban</h3>
-            <div class="overflow-y-auto custom-scrollbar pr-2" style="max-height: 260px;">
+        <div class="bg-white border border-outline-variant rounded-xl p-6 shadow-sm delay-3 animate-fade-in hover-card"><h3 class="text-lg font-bold mb-6">Phân bổ theo Phòng ban</h3>
+            <div class="overflow-y-auto custom-scrollbar pr-3" style="max-height: 280px;">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div>{dept_html_col1}</div><div>{dept_html_col2}</div></div>
             </div>
         </div>
     </body></html>
     """
-    components.html(html_p1, height=1400, scrolling=True)
-
+    components.html(html_p1, height=1150, scrolling=False)
 
 # ==========================================
 # TRANG 2: WORKFORCE ANALYTICS
@@ -417,7 +409,7 @@ elif page == "Workforce Analytics":
                 tds = f"<td class='p-3 text-sm font-semibold text-[#1b1c1d] border-b border-[#e2e8f0]'>{idx}</td>"
                 for c in cols: tds += f"<td class='p-3 text-center text-sm border-b border-[#e2e8f0] {'font-bold text-[#0045d3] bg-[#dce1ff]/50' if c=='Tổng' else 'text-[#434655]'}'>{row[c] if row[c]>0 else '-'}</td>"
                 tr_str += f"<tr class='{bg}'>{tds}</tr>"
-            matrix_html = f'<table class="w-full text-left border-collapse"><thead><tr><th class="p-3 text-[11px] uppercase text-[#434655] font-bold border-b border-[#e2e8f0] bg-[#f5f3f4]">Phòng ban</th>{th_str}</tr></thead><tbody>{tr_str}</tbody></table>'
+            matrix_html = f'<div class="overflow-x-auto custom-scrollbar"><table class="w-full text-left border-collapse"><thead><tr><th class="p-3 text-[12px] uppercase text-[#434655] font-bold border-b border-[#e2e8f0] bg-[#f5f3f4]">Phòng ban</th>{th_str}</tr></thead><tbody>{tr_str}</tbody></table></div>'
 
     html_page2 = f"""
     <!DOCTYPE html><html lang="vi"><head>{TAILWIND_HEAD}</head><body class="p-4 md:p-6 max-w-[1500px] mx-auto animate-fade-in">
@@ -472,7 +464,7 @@ elif page == "Workforce Analytics":
             </section>
         </div>
 
-        <section class="bg-white border border-[#c4c5d7] p-6 rounded-xl card-shadow mb-10"><div class="flex justify-between items-center mb-6"><h3 class="text-base font-bold text-[#1b1c1d]">Ma trận Nhân sự: Phòng ban x Cấp bậc</h3></div><div class="overflow-x-auto custom-scrollbar">{matrix_html}</div></section>
+        <section class="bg-white border border-[#c4c5d7] p-6 rounded-xl card-shadow mb-10"><div class="flex justify-between items-center mb-6"><h3 class="text-base font-bold text-[#1b1c1d]">Ma trận Nhân sự: Phòng ban x Cấp bậc</h3></div>{matrix_html}</section>
     </body></html>
     """
     components.html(html_page2, height=2100, scrolling=True)
@@ -588,20 +580,11 @@ elif page == "Intern Analytics":
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div class="lg:col-span-8 bg-white p-6 rounded-xl border border-[#c4c5d7] card-shadow">
                     <h4 class="font-bold text-sm mb-6 text-[#1b1c1d]">Top Universities by Conversion Quality</h4>
-                    <div class="overflow-x-auto"><table class="w-full text-left text-[11px]">
-                        <thead class="bg-[#f5f3f4]"><tr><th class="p-3 uppercase text-[#434655]">University</th><th class="p-3 uppercase text-[#434655]">Total Interns</th><th class="p-3 uppercase text-[#434655]">Avg Score</th><th class="p-3 uppercase text-[#434655]">Quality Rank</th></tr></thead>
-                        <tbody class="divide-y divide-[#e2e8f0]">
-                            <tr><td class="p-3 font-bold text-[#1b1c1d]">HUST</td><td class="p-3">45</td><td class="p-3">4.8</td><td class="p-3 text-[#0045d3] font-bold">Elite</td></tr>
-                            <tr><td class="p-3 font-bold text-[#1b1c1d]">PTIT</td><td class="p-3">18</td><td class="p-3">4.6</td><td class="p-3 text-[#335bae] font-bold">High</td></tr>
-                            <tr><td class="p-3 font-bold text-[#1b1c1d]">FTU</td><td class="p-3">28</td><td class="p-3">4.3</td><td class="p-3 text-[#747686] font-bold">Medium</td></tr>
-                        </tbody>
-                    </table></div>
+                    <div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead class="bg-[#f5f3f4]"><tr><th class="p-3 uppercase text-[#434655]">University</th><th class="p-3 uppercase text-[#434655]">Total Interns</th><th class="p-3 uppercase text-[#434655]">Avg Score</th><th class="p-3 uppercase text-[#434655]">Quality Rank</th></tr></thead><tbody class="divide-y divide-[#e2e8f0]"><tr><td class="p-3 font-bold text-[#1b1c1d]">HUST</td><td class="p-3">45</td><td class="p-3">4.8</td><td class="p-3 text-[#0045d3] font-bold">Elite</td></tr><tr><td class="p-3 font-bold text-[#1b1c1d]">PTIT</td><td class="p-3">18</td><td class="p-3">4.6</td><td class="p-3 text-[#335bae] font-bold">High</td></tr><tr><td class="p-3 font-bold text-[#1b1c1d]">FTU</td><td class="p-3">28</td><td class="p-3">4.3</td><td class="p-3 text-[#747686] font-bold">Medium</td></tr></tbody></table></div>
                 </div>
                 <div class="lg:col-span-4 bg-[#ffdad6]/20 p-6 rounded-xl border border-[#ba1a1a]/20 card-shadow">
                     <h4 class="font-bold text-sm mb-6 text-[#ba1a1a] flex items-center gap-2"><span class="material-symbols-outlined">report_problem</span> High-Risk Areas</h4>
-                    <div class="space-y-4">
-                        <div class="p-3 bg-white rounded border border-[#ba1a1a]/20 flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-[#ba1a1a]/10 flex items-center justify-center text-[#ba1a1a] shrink-0"><span class="material-symbols-outlined text-sm">logout</span></div><div><div class="font-bold text-[11px] text-[#ba1a1a]">QA Early Leave Spike</div><p class="text-[10px] text-[#434655] mt-1">Tỷ lệ nghỉ sớm tại phòng QA tăng mạnh.</p></div></div>
-                    </div>
+                    <div class="space-y-4"><div class="p-3 bg-white rounded border border-[#ba1a1a]/20 flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-[#ba1a1a]/10 flex items-center justify-center text-[#ba1a1a] shrink-0"><span class="material-symbols-outlined text-sm">logout</span></div><div><div class="font-bold text-[11px] text-[#ba1a1a]">QA Early Leave Spike</div><p class="text-[10px] text-[#434655] mt-1">Tỷ lệ nghỉ sớm tại phòng QA tăng mạnh.</p></div></div></div>
                 </div>
             </div>
         </section>
@@ -614,7 +597,6 @@ elif page == "Intern Analytics":
 # TRANG 4: ATTRITION & RECRUITMENT
 # ==========================================
 elif page == "Attrition & Recruitment":
-    
     html_p3 = f"""
     <!DOCTYPE html><html lang="vi"><head>{TAILWIND_HEAD}</head><body class="p-4 md:p-6"><div class="max-w-[1600px] mx-auto animate-fade-in">
         <div class="mb-6"><h1 class="text-3xl font-bold text-[#1b1c1d]">Báo cáo Nghỉ việc & Tuyển dụng</h1><p class="text-[#434655] mt-1 text-sm">Phân tích chi tiết biến động nhân sự ({nam_phan_tich}).</p></div>
@@ -638,7 +620,7 @@ elif page == "Attrition & Recruitment":
             hire_trend.columns = ['Tháng', 'Tuyển mới']
             fig_h1 = px.line(hire_trend, x='Tháng', y='Tuyển mới', markers=True, color_discrete_sequence=['#3260ec'])
             fig_h1.update_traces(line=dict(width=3, shape='spline'), marker=dict(size=8), fill='tozeroy', fillcolor='rgba(50, 96, 236, 0.15)')
-            chart_wrapper(f"Tuyển mới theo tháng", fig_h1, height=220)
+            chart_wrapper(f"Tuyển mới theo tháng ({nam_phan_tich})", fig_h1, height=220)
         
     with r1c2:
         s_nam_vao = pd.to_numeric(df_base['Năm vào làm'], errors='coerce').dropna().astype(int)
@@ -649,7 +631,7 @@ elif page == "Attrition & Recruitment":
             fig_h_year = px.bar(yearly_hires, x='Năm', y='Tuyển mới', text_auto=True)
             fig_h_year.update_traces(marker_color=colors)
             fig_h_year.update_xaxes(type='category') 
-            chart_wrapper("Tuyển mới theo Năm", fig_h_year, height=220)
+            chart_wrapper("Xu hướng tuyển mới theo Năm", fig_h_year, height=220)
 
     st.markdown("<br>", unsafe_allow_html=True)
     r2c1, r2c2, r2c3 = st.columns(3)
@@ -657,19 +639,20 @@ elif page == "Attrition & Recruitment":
         if not df_hires.empty and 'Phòng ban' in df_hires.columns:
             fig_h2 = px.bar(df_hires[df_hires['Phòng ban'] != 'Chưa cập nhật']['Phòng ban'].value_counts().head(5).reset_index(), x='count', y='Phòng ban', orientation='h', text_auto=True, color_discrete_sequence=['#3260ec'])
             fig_h2.update_yaxes(categoryorder='total ascending')
-            chart_wrapper(f"Tuyển mới theo Phòng ban", fig_h2, height=220)
+            chart_wrapper(f"Tuyển mới theo Phòng ban ({nam_phan_tich})", fig_h2, height=220)
 
     with r2c2:
         if not df_hires.empty and 'Cấp bậc' in df_hires.columns:
             fig_h3 = px.bar(df_hires[df_hires['Cấp bậc']!='Chưa cập nhật']['Cấp bậc'].value_counts().reset_index(), x='Cấp bậc', y='count', text_auto=True, color_discrete_sequence=['#82a6fe'])
-            chart_wrapper(f"Tuyển mới theo Cấp bậc", fig_h3, height=220)
+            chart_wrapper(f"Tuyển mới theo Cấp bậc ({nam_phan_tich})", fig_h3, height=220)
         
     with r2c3:
         if not df_hires.empty and 'Công nghệ' in df_hires.columns:
             fig_h4 = px.treemap(df_hires[df_hires['Công nghệ']!='Chưa cập nhật']['Công nghệ'].value_counts().reset_index(), path=[px.Constant("Tech"), 'Công nghệ'], values='count', color='count', color_continuous_scale='Blues')
             fig_h4.update_layout(margin=dict(t=0, l=0, r=0, b=0))
-            chart_wrapper(f"Tuyển mới theo Công nghệ", fig_h4, height=220)
+            chart_wrapper(f"Tuyển mới theo Công nghệ ({nam_phan_tich})", fig_h4, height=220)
 
+    # --- PHÂN TÍCH NGHỈ VIỆC ---
     st.markdown("<br><hr style='border-color:#e2e8f0;'><br>", unsafe_allow_html=True)
     st.markdown(create_card("Phân tích Nghỉ việc", "trending_down", "#ba1a1a"), unsafe_allow_html=True)
     
@@ -680,24 +663,27 @@ elif page == "Attrition & Recruitment":
             term_trend.columns = ['Tháng', 'Nghỉ việc']
             fig_t1 = px.line(term_trend, x='Tháng', y='Nghỉ việc', markers=True, color_discrete_sequence=['#ba1a1a'])
             fig_t1.update_traces(line=dict(width=3, shape='spline'), marker=dict(size=8), fill='tozeroy', fillcolor='rgba(186, 26, 26, 0.1)')
-            chart_wrapper(f"Nghỉ việc theo tháng", fig_t1, height=250)
+            chart_wrapper(f"Nghỉ việc theo tháng ({nam_phan_tich})", fig_t1, height=250)
         
     with r3c2:
         if not df_terms.empty and 'Lý do nghỉ việc' in df_terms.columns:
             reason_terms = df_terms[df_terms['Lý do nghỉ việc']!='Chưa cập nhật']['Lý do nghỉ việc'].value_counts().reset_index()
             reason_terms.columns = ['Lý do', 'Số lượng']
             reason_terms['Lý do (Ngắn)'] = reason_terms['Lý do'].apply(lambda x: str(x)[:30] + '...' if len(str(x)) > 30 else str(x))
-            fig_t2 = px.pie(reason_terms, names='Lý do (Ngắn)', values='Số lượng', custom_data=['Lý do'], hole=0.5, color_discrete_sequence=['#174597', '#3260ec', '#82a6fe', '#dce1ff', '#c4c5d7'])
+            fig_t2 = px.pie(reason_terms, names='Lý do (Ngắn)', values='Số lượng', custom_data=['Lý do'], hole=0.5, color_discrete_sequence=['#ba1a1a', '#e11d48', '#ffb596', '#ffdad6', '#c4c5d7'])
             fig_t2.update_traces(textposition='inside', textinfo='percent', hovertemplate="<b>%{customdata[0]}</b><br>Số lượng: %{value}<extra></extra>")
             fig_t2.update_layout(showlegend=True, margin=dict(t=10, b=10, l=0, r=0), legend=dict(title="", orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0, font=dict(size=11, color="#434655"), itemwidth=30))
-            chart_wrapper(f"Lý do nghỉ việc", fig_t2, height=250)
+            chart_wrapper(f"Lý do nghỉ việc ({nam_phan_tich})", fig_t2, height=250)
         
     with r3c3:
         if not df_terms.empty and 'Nhóm thâm niên' in df_terms.columns:
-            fig_t3 = px.bar(df_terms[df_terms['Nhóm thâm niên']!='Chưa cập nhật']['Nhóm thâm niên'].value_counts().sort_index().reset_index(), x='Nhóm thâm niên', y='count', text_auto=True, color_discrete_sequence=['#ffdad6'])
+            tn_terms = df_terms[df_terms['Nhóm thâm niên']!='Chưa cập nhật']['Nhóm thâm niên'].value_counts().sort_index().reset_index()
+            tn_terms.columns = ['Thâm niên', 'Số lượng']
+            fig_t3 = px.bar(tn_terms, x='Thâm niên', y='Số lượng', text_auto=True, color_discrete_sequence=['#ffdad6'])
             fig_t3.update_traces(marker_line_color='#ba1a1a', marker_line_width=1.5)
-            chart_wrapper(f"Thâm niên người nghỉ", fig_t3, height=250)
+            chart_wrapper(f"Thâm niên người nghỉ ({nam_phan_tich})", fig_t3, height=250)
 
+    # 4 BIỂU ĐỒ NGHỈ VIỆC BỔ SUNG 
     r4c1, r4c2, r4c3, r4c4 = st.columns(4)
     with r4c1:
         if not df_terms.empty and 'Phòng ban' in df_terms.columns:
@@ -723,6 +709,7 @@ elif page == "Attrition & Recruitment":
             fig_t7 = px.bar(df_terms[df_terms['Công nghệ']!='Chưa cập nhật']['Công nghệ'].value_counts().head(5).reset_index(), x='Công nghệ', y='count', text_auto=True, color_discrete_sequence=['#ba1a1a'])
             chart_wrapper(f"Công nghệ thiếu ổn định", fig_t7, height=250)
 
+    # --- SO SÁNH & BIẾN ĐỘNG ---
     st.markdown("<br><hr style='border-color:#e2e8f0;'><br>", unsafe_allow_html=True)
     r5c1, r5c2 = st.columns([6, 6])
     if not df_hires.empty or not df_terms.empty:
@@ -738,12 +725,12 @@ elif page == "Attrition & Recruitment":
             fig_vs.add_trace(go.Bar(x=trend_df['Tháng'], y=trend_df['Tuyển mới'], name='Tuyển mới', marker_color='#3260ec', width=0.35))
             fig_vs.add_trace(go.Bar(x=trend_df['Tháng'], y=trend_df['Nghỉ việc'], name='Nghỉ việc', marker_color='#ba1a1a', width=0.35))
             fig_vs.update_layout(barmode='group', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-            chart_wrapper(f"Tuyển mới vs Nghỉ việc theo tháng", fig_vs, height=280)
+            chart_wrapper(f"Tuyển mới vs Nghỉ việc theo tháng ({nam_phan_tich})", fig_vs, height=280)
             
         with r5c2:
             fig_wf = go.Figure(go.Waterfall(x=trend_df['Tháng'], y=trend_df['Net'], text=trend_df['Net'], textposition="outside", measure=["relative"] * len(trend_df), decreasing={"marker":{"color":"#ba1a1a"}}, increasing={"marker":{"color":"#3260ec"}}))
             fig_wf.update_layout(waterfallgap=0.3)
-            chart_wrapper(f"Biến động nhân sự thuần", fig_wf, height=280)
+            chart_wrapper(f"Biến động nhân sự thuần ({nam_phan_tich})", fig_wf, height=280)
 
     st.markdown("<div style='background:white; padding:24px; border-radius:12px; border:1px solid #c4c5d7;' class='card-shadow'><div style='font-family:Inter; font-size:14px; font-weight:700; color:#1b1c1d; margin-bottom:15px;'>Danh sách chi tiết nhân sự nghỉ việc</div>", unsafe_allow_html=True)
     cols_to_show = ['MSNV', 'Họ tên', 'Phòng ban', 'Chức danh', 'Cấp bậc', 'Ngày vào làm', 'Ngày làm việc cuối cùng', 'Lý do nghỉ việc']
