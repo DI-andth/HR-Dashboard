@@ -243,7 +243,7 @@ if page == "Executive Dashboard":
         <div class="bg-white border border-outline-variant rounded-xl p-6 shadow-sm delay-3 animate-fade-in"><h3 class="text-lg font-bold mb-6">Phân bổ theo Phòng ban</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div>{dept_html_col1}</div><div>{dept_html_col2}</div></div></div>
     </body></html>
     """
-    components.html(html_p1, height=1050, scrolling=False)
+    components.html(html_p1, height=1050, scrolling=True)
 
 # ==========================================
 # TRANG 2: WORKFORCE ANALYTICS
