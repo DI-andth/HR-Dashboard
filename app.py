@@ -85,7 +85,12 @@ def get_dynamic_font(text):
 @st.cache_data
 def load_data():
     df = pd.read_excel('DataNhansuFinal.xlsx')
-    if 'Phòng ban' in df.columns: df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
+    
+    # 1. Sửa dòng này để xoá ký tự ẩn BOM (\ufeff)
+    df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
+    
+    if 'Phòng ban' in df.columns: 
+        df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
     df.columns = df.columns.str.replace('\n', ' ', regex=True).str.strip()
     if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
         
