@@ -615,7 +615,7 @@ elif page == "Attrition & Recruitment":
         </div>
     </div></body></html>
     """
-    components.html(html_p3, height=230, scrolling=False)
+    components.html(html_p3, height=230, scrolling=True)
 
     st.markdown(create_card("Phân tích Tuyển dụng", "person_add", "#3260ec"), unsafe_allow_html=True)
     r1c1, r1c2 = st.columns([7, 5])
