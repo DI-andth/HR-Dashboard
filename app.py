@@ -266,7 +266,7 @@ if page == "Executive Dashboard":
         </div>
     </body></html>
     """
-    components.html(html_p1, height=1150, scrolling=False)
+    components.html(html_p1, height=1150, scrolling=True)
 
 # ==========================================
 # TRANG 2: WORKFORCE ANALYTICS
@@ -557,7 +557,46 @@ elif page == "Intern Analytics":
         for i, (age, count) in enumerate(age_data.items()):
             h_pct = int((count/max_age)*85) + 10
             age_int_html += f'<div class="flex flex-col items-center gap-1 w-8"><div class="w-full {colors_age[i%4]} rounded-t transition hover:opacity-80" style="height: {h_pct}%;" title="{count} NV"></div><span class="text-[10px] text-[#434655] font-bold">{age}</span></div>'
+#TẠO DANH SÁCH INTERN CHI TIẾT ---
+    intern_list_html = ""
+    for _, row in df_int_year.iterrows():
+        msnv = row.get('MSNV', 'N/A')
+        dept = row.get('Phòng ban', 'Chưa cập nhật')
+        team = row.get('Nhóm', 'Chưa cập nhật')
+        if pd.isna(team) or team in ['', 'Chưa cập nhật']:
+            team = dept # Lấy phòng ban nếu không có nhóm
+            
+        uni = row.get('Tên trường', 'Chưa cập nhật')
+        major = row.get('Chuyên ngành', 'Chưa cập nhật')
+        tinh_trang = row.get('Tình trạng', 'ON')
+        tham_nien = pd.to_numeric(row.get('Thâm niên 1', 0), errors='coerce')
+        if pd.isna(tham_nien): tham_nien = 0
+        
+        # Phân loại trạng thái (giống hệt logic tính Overview ở trên)
+        if tinh_trang != 'OFF':
+            status_text = "Active"
+            badge_class = "bg-[#dce1ff] text-[#0045d3]"
+        else:
+            if tham_nien >= 0.15:
+                status_text = "Completed"
+                badge_class = "bg-[#c4c5d7] text-[#1b1c1d]"
+            else:
+                status_text = "Early Leave"
+                badge_class = "bg-[#ffdad6] text-[#ba1a1a]"
 
+        intern_list_html += f"""
+        <tr class="hover:bg-[#f5f3f4] border-b border-[#e2e8f0] transition-colors">
+            <td class="p-3 font-bold text-[#1b1c1d]">{msnv}</td>
+            <td class="p-3 text-[12px] text-[#434655]"><div class="font-semibold text-[#1b1c1d] truncate w-[200px]" title="{uni}">{uni}</div><div class="text-[10px] text-[#747686] truncate w-[200px]" title="{major}">{major}</div></td>
+            <td class="p-3 text-[12px] text-[#434655]">{team}</td>
+            <td class="p-3 text-[12px] text-[#434655]">{round(tham_nien, 2)} năm</td>
+            <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase {badge_class}">{status_text}</span></td>
+        </tr>
+        """
+        
+    if df_int_year.empty:
+         intern_list_html = "<tr><td colspan='5' class='p-6 text-center text-[#747686] font-medium'>Không có dữ liệu thực tập sinh trong năm này.</td></tr>"
+   
     html_intern = f"""
     <!DOCTYPE html><html lang="vi"><head>{TAILWIND_HEAD}</head><body class="p-4 md:p-6 max-w-[1500px] mx-auto animate-fade-in">
         <header class="mb-8 flex flex-col md:flex-row justify-between items-end gap-4 border-b border-[#e2e8f0] pb-6">
@@ -592,17 +631,24 @@ elif page == "Intern Analytics":
                 <div class="bg-white p-6 rounded-xl border border-[#c4c5d7] card-shadow"><h4 class="font-bold text-sm mb-6 text-[#1b1c1d]">Age Distribution</h4><div class="h-32 flex items-end gap-4 justify-center border-b border-[#efedee]">{age_int_html}</div></div>
             </div>
         </section>
-
         <section class="space-y-6 animate-fade-in delay-3">
-            <h3 class="text-xl font-bold text-[#0045d3] flex items-center gap-2"><span class="material-symbols-outlined">assignment_ind</span> III. Insights & Alerts</h3>
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div class="lg:col-span-8 bg-white p-6 rounded-xl border border-[#c4c5d7] card-shadow">
-                    <h4 class="font-bold text-sm mb-6 text-[#1b1c1d]">Top Universities by Conversion Quality</h4>
-                    <div class="overflow-x-auto"><table class="w-full text-left text-[11px]"><thead class="bg-[#f5f3f4]"><tr><th class="p-3 uppercase text-[#434655]">University</th><th class="p-3 uppercase text-[#434655]">Total Interns</th><th class="p-3 uppercase text-[#434655]">Avg Score</th><th class="p-3 uppercase text-[#434655]">Quality Rank</th></tr></thead><tbody class="divide-y divide-[#e2e8f0]"><tr><td class="p-3 font-bold text-[#1b1c1d]">HUST</td><td class="p-3">45</td><td class="p-3">4.8</td><td class="p-3 text-[#0045d3] font-bold">Elite</td></tr><tr><td class="p-3 font-bold text-[#1b1c1d]">PTIT</td><td class="p-3">18</td><td class="p-3">4.6</td><td class="p-3 text-[#335bae] font-bold">High</td></tr><tr><td class="p-3 font-bold text-[#1b1c1d]">FTU</td><td class="p-3">28</td><td class="p-3">4.3</td><td class="p-3 text-[#747686] font-bold">Medium</td></tr></tbody></table></div>
-                </div>
-                <div class="lg:col-span-4 bg-[#ffdad6]/20 p-6 rounded-xl border border-[#ba1a1a]/20 card-shadow">
-                    <h4 class="font-bold text-sm mb-6 text-[#ba1a1a] flex items-center gap-2"><span class="material-symbols-outlined">report_problem</span> High-Risk Areas</h4>
-                    <div class="space-y-4"><div class="p-3 bg-white rounded border border-[#ba1a1a]/20 flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-[#ba1a1a]/10 flex items-center justify-center text-[#ba1a1a] shrink-0"><span class="material-symbols-outlined text-sm">logout</span></div><div><div class="font-bold text-[11px] text-[#ba1a1a]">QA Early Leave Spike</div><p class="text-[10px] text-[#434655] mt-1">Tỷ lệ nghỉ sớm tại phòng QA tăng mạnh.</p></div></div></div>
+            <h3 class="text-xl font-bold text-[#0045d3] flex items-center gap-2"><span class="material-symbols-outlined">format_list_bulleted</span> III. Intern Details Directory</h3>
+            <div class="bg-white p-0 rounded-xl border border-[#c4c5d7] card-shadow overflow-hidden">
+                <div class="overflow-x-auto custom-scrollbar max-h-[400px]">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-[#f5f3f4] sticky top-0 z-10 border-b border-[#c4c5d7]">
+                            <tr>
+                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">MSNV</th>
+                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Trường / Chuyên ngành</th>
+                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Team / Phòng ban</th>
+                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Thâm niên</th>
+                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#e2e8f0]">
+                            {intern_list_html}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
