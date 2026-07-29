@@ -506,13 +506,26 @@ elif page == "Intern Analytics":
         for dept, count in dept_counts.items():
             w_pct = int((count / max_dept) * 90) + 10
             dept_int_html += f'<div class="space-y-1"><div class="flex justify-between text-[11px] font-bold text-[#434655]"><span>{dept}</span><span>{count}</span></div><div class="w-full bg-[#f5f3f4] h-2.5 rounded-full overflow-hidden"><div class="bg-[#0045d3] h-full" style="width: {w_pct}%"></div></div></div>'
-
     team_int_html = ""
-    if 'Nhóm' in df_int_year.columns:
+    if 'Nhóm' in df_int_year.columns and 'Phòng ban' in df_int_year.columns:
+        # 1. Tạo bản sao của cột 'Nhóm' để xử lý
+        team_series = df_int_year['Nhóm'].copy()
+        
+        # 2. Xác định những người không có 'Nhóm' (Bị trống hoặc mang giá trị 'Chưa cập nhật')
+        is_missing_team = team_series.isin(['Chưa cập nhật', '', 'NaN']) | team_series.isna()
+        
+        # 3. Lấy tên 'Phòng ban' đắp vào những người thiếu 'Nhóm'
+        team_series.loc[is_missing_team] = df_int_year.loc[is_missing_team, 'Phòng ban']
+        
+        # 4. Nếu đắp xong mà Phòng ban cũng 'Chưa cập nhật' thì đổi tên thành 'Khác' cho chuyên nghiệp
+        team_series = team_series.replace('Chưa cập nhật', 'Khác')
+        
         colors = ['bg-[#0045d3]/80 text-white', 'bg-[#0045d3]/60 text-white', 'bg-[#0045d3]/40 text-white', 'bg-[#e3e2e3] text-[#1b1c1d]']
-        for i, (team, count) in enumerate(df_int_year['Nhóm'].value_counts().head(4).items()):
+        
+        # 5. Render ra giao diện
+        for i, (team, count) in enumerate(team_series.value_counts().head(4).items()):
             team_int_html += f'<div class="{colors[i%4]} p-2 rounded flex flex-col justify-end text-[10px] font-bold truncate" title="{team}">{team} ({count})</div>'
-
+ 
     major_html = ""
     if 'Chuyên ngành' in df_int_year.columns:
         m_data = df_int_year['Chuyên ngành'].value_counts().head(4)
