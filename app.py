@@ -162,6 +162,7 @@ if len([c for c in df.columns if 'MSNV' in str(c).upper()]) > 0:
     ten_cot_msnv = [c for c in df.columns if 'MSNV' in str(c).upper()][0]
     danh_sach_loai_tru = ['PN-000', 'IPC-039']
     df = df[~df[ten_cot_msnv].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
+
 # ==========================================
 # 3. SIDEBAR & LỌC TOÀN CỤC
 # ==========================================
@@ -201,7 +202,6 @@ if "Tất cả" not in f_chucdanh: df_base = df_base[df_base['Chức danh'].isin
 nam_vao_base = pd.to_numeric(df_base['Năm vào làm'], errors='coerce')
 nam_nghi_base = pd.to_numeric(df_base['Năm nghỉ'], errors='coerce')
 
-# Tổng nhân sự đang làm việc (Tính tất cả mọi người)
 condition_active = (nam_vao_base <= nam_phan_tich) & (nam_nghi_base.isna() | (nam_nghi_base > nam_phan_tich))
 df_active = df_base[condition_active].copy()
 total_emp = len(df_active)
@@ -216,7 +216,7 @@ df_contracted = df_base[~is_intern_ctv].copy()
 nam_vao_ct = pd.to_numeric(df_contracted['Năm vào làm'], errors='coerce')
 nam_nghi_ct = pd.to_numeric(df_contracted['Năm nghỉ'], errors='coerce')
 
-# TÍNH TOÁN TUYỂN MỚI & NGHỈ VIỆC (CHỈ ĐẾM NV CHÍNH THỨC)
+# Tính Tuyển Mới & Nghỉ Việc (Chỉ đếm NV Chính thức)
 df_hires = df_contracted[nam_vao_ct == nam_phan_tich].copy()
 df_terms = df_contracted[nam_nghi_ct == nam_phan_tich].copy()
 
@@ -224,7 +224,7 @@ hires_count = len(df_hires)
 terms_count = len(df_terms)
 net_change = hires_count - terms_count
 
-# TÍNH TOÁN TỶ LỆ
+# Tính toán các tỷ lệ
 hc_start_ct = len(df_contracted[(nam_vao_ct < nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct >= nam_phan_tich))])
 hc_end_ct = len(df_contracted[(nam_vao_ct <= nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct > nam_phan_tich))])
 
@@ -233,13 +233,11 @@ turnover_rate = round((terms_count / avg_hc_ct) * 100, 1) if avg_hc_ct > 0 else 
 hiring_rate = round((hires_count / hc_start_ct) * 100, 1) if hc_start_ct > 0 else 0
 retention_rate = round(100 - turnover_rate, 1) if turnover_rate <= 100 else 0
 
-# TÍNH TOÁN TUỔI & THÂM NIÊN TB
 age_mean = pd.to_numeric(df_active['Tuổi'], errors='coerce').mean() if 'Tuổi' in df_active.columns else 0
 avg_age = round(age_mean, 1) if pd.notna(age_mean) else 0
 
 sen_mean = pd.to_numeric(df_active['Thâm niên 1'], errors='coerce').mean() if 'Thâm niên 1' in df_active.columns else 0
 avg_seniority = round(sen_mean, 1) if pd.notna(sen_mean) else 0
-
 # ==========================================
 # TRANG 1: EXECUTIVE DASHBOARD
 # ==========================================
