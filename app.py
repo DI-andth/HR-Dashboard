@@ -82,21 +82,29 @@ def get_dynamic_font(text):
 # ==========================================
 # 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
 # ==========================================
-# ==========================================
-# 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
-# ==========================================
 import pandas as pd
 import streamlit as st
 import datetime
 import re
+import requests
+import io
 
 @st.cache_data(ttl=60)
 def load_data():
     excel_url = "https://dataimpact-my.sharepoint.com/:x:/g/personal/doan_thi_hong_an_dataimpact_vn/IQC8tnq16OngR75FkqADSHtqAf4aLNQooHvEjLCXycAAQ8E?download=1"
     
     try:
-        df = pd.read_excel(excel_url)
-        # Sửa dòng này để xoá ký tự ẩn BOM (\ufeff)
+        # Giả lập trình duyệt để vượt tường lửa SharePoint
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        }
+        response = requests.get(excel_url, headers=headers)
+        response.raise_for_status() 
+        
+        # Đọc dữ liệu từ bộ nhớ đệm
+        df = pd.read_excel(io.BytesIO(response.content))
+        
+        # Xoá ký tự ẩn BOM (\ufeff) và khoảng trắng thừa ở tên cột
         df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
         
         if 'Phòng ban' in df.columns: 
@@ -112,7 +120,6 @@ def load_data():
         date_cols = ['Ngày vào làm', 'Ngày làm việc cuối cùng', 'Ngày sinh', 'HĐ hiện tại đến', 'Thử việc đến', 'CTV đến', 'CTV từ', 'Thử việc từ', 'HĐLĐ lần 1 từ', 'HĐLĐ lần 2 từ', 'HĐLĐ vô thời hạn từ']
         for d_col in date_cols:
             if d_col in df.columns: 
-                # Thêm dayfirst=True để đọc đúng định dạng ngày Việt Nam (DD/MM/YYYY)
                 df[d_col] = pd.to_datetime(df[d_col], errors='coerce', dayfirst=True)
                 
         if 'Ngày vào làm' in df.columns:
@@ -145,12 +152,16 @@ def load_data():
 
 df = load_data()
 
+# Bảo vệ App không bị sập nếu load data thất bại
+if df.empty:
+    st.warning("⛔ Không thể tải dữ liệu từ SharePoint. Đang chờ kết nối lại...")
+    st.stop()
+
 # --- BỘ LỌC DỮ LIỆU GỐC (LOẠI BỎ MSNV ẢO/NGHỈ TRƯỚC) ---
 if len([c for c in df.columns if 'MSNV' in str(c).upper()]) > 0:
     ten_cot_msnv = [c for c in df.columns if 'MSNV' in str(c).upper()][0]
     danh_sach_loai_tru = ['PN-000', 'IPC-039']
     df = df[~df[ten_cot_msnv].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
-
 # ==========================================
 # 3. SIDEBAR & LỌC TOÀN CỤC
 # ==========================================
