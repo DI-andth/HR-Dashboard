@@ -82,50 +82,74 @@ def get_dynamic_font(text):
 # ==========================================
 # 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
 # ==========================================
-@st.cache_data
+# ==========================================
+# 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
+# ==========================================
+import pandas as pd
+import streamlit as st
+import datetime
+import re
+
+@st.cache_data(ttl=60)
 def load_data():
-    df = pd.read_excel('DataNhansuFinal.xlsx')
+    excel_url = "https://dataimpact-my.sharepoint.com/:x:/g/personal/doan_thi_hong_an_dataimpact_vn/IQC8tnq16OngR75FkqADSHtqAf4aLNQooHvEjLCXycAAQ8E?download=1"
     
-    # 1. Sửa dòng này để xoá ký tự ẩn BOM (\ufeff)
-    df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
-    
-    if 'Phòng ban' in df.columns: 
-        df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
-    df.columns = df.columns.str.replace('\n', ' ', regex=True).str.strip()
-    if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
+    try:
+        df = pd.read_excel(excel_url)
+        # Sửa dòng này để xoá ký tự ẩn BOM (\ufeff)
+        df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
         
-    for col in ['Tuổi', 'Thâm niên 1']:
-        if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-    date_cols = ['Ngày vào làm', 'Ngày làm việc cuối cùng', 'Ngày sinh', 'HĐ hiện tại đến', 'Thử việc đến', 'CTV đến', 'CTV từ', 'Thử việc từ', 'HĐLĐ lần 1 từ', 'HĐLĐ lần 2 từ', 'HĐLĐ vô thời hạn từ']
-    for d_col in date_cols:
-        if d_col in df.columns: df[d_col] = pd.to_datetime(df[d_col], errors='coerce')
+        if 'Phòng ban' in df.columns: 
+            df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
             
-    if 'Ngày vào làm' in df.columns:
-        df['Năm vào làm'] = df['Ngày vào làm'].dt.year
-        df['Tháng vào làm'] = df['Ngày vào làm'].dt.month
-    if 'Ngày làm việc cuối cùng' in df.columns:
-        df['Năm nghỉ'] = df['Ngày làm việc cuối cùng'].dt.year
-        df['Tháng nghỉ'] = df['Ngày làm việc cuối cùng'].dt.month
-    if 'Ngày sinh' in df.columns: df['Tháng sinh'] = df['Ngày sinh'].dt.month
-    
-    if 'Thâm niên 1' in df.columns: df['Nhóm thâm niên'] = pd.cut(df['Thâm niên 1'], bins=[-1, 0.5, 1, 3, 5, 10, 100], labels=['<6m', '6-12m', '1-3y', '3-5y', '5-10y', '>10y']).astype(object)
-    if 'Tuổi' in df.columns: df['Nhóm tuổi'] = pd.cut(df['Tuổi'], bins=[0, 24, 30, 35, 40, 100], labels=['<25', '25-30', '31-35', '36-40', '>40']).astype(object)
-    if 'Địa chỉ liên lạc' in df.columns: df['Tỉnh_LL'] = df['Địa chỉ liên lạc'].apply(get_tinh)
-    if 'Địa chỉ thường trú' in df.columns: df['Tỉnh_TT'] = df['Địa chỉ thường trú'].apply(get_tinh)
-    
-    obj_cols = df.select_dtypes(include=['object', 'string']).columns
-    df[obj_cols] = df[obj_cols].fillna('Chưa cập nhật')
-    return df
+        if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: 
+            df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
+            
+        for col in ['Tuổi', 'Thâm niên 1']:
+            if col in df.columns: 
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+        date_cols = ['Ngày vào làm', 'Ngày làm việc cuối cùng', 'Ngày sinh', 'HĐ hiện tại đến', 'Thử việc đến', 'CTV đến', 'CTV từ', 'Thử việc từ', 'HĐLĐ lần 1 từ', 'HĐLĐ lần 2 từ', 'HĐLĐ vô thời hạn từ']
+        for d_col in date_cols:
+            if d_col in df.columns: 
+                # Thêm dayfirst=True để đọc đúng định dạng ngày Việt Nam (DD/MM/YYYY)
+                df[d_col] = pd.to_datetime(df[d_col], errors='coerce', dayfirst=True)
+                
+        if 'Ngày vào làm' in df.columns:
+            df['Năm vào làm'] = df['Ngày vào làm'].dt.year
+            df['Tháng vào làm'] = df['Ngày vào làm'].dt.month
+        if 'Ngày làm việc cuối cùng' in df.columns:
+            df['Năm nghỉ'] = df['Ngày làm việc cuối cùng'].dt.year
+            df['Tháng nghỉ'] = df['Ngày làm việc cuối cùng'].dt.month
+        if 'Ngày sinh' in df.columns: 
+            df['Tháng sinh'] = df['Ngày sinh'].dt.month
+        
+        if 'Thâm niên 1' in df.columns: 
+            df['Nhóm thâm niên'] = pd.cut(df['Thâm niên 1'], bins=[-1, 0.5, 1, 3, 5, 10, 100], labels=['<6m', '6-12m', '1-3y', '3-5y', '5-10y', '>10y']).astype(object)
+        if 'Tuổi' in df.columns: 
+            df['Nhóm tuổi'] = pd.cut(df['Tuổi'], bins=[0, 24, 30, 35, 40, 100], labels=['<25', '25-30', '31-35', '36-40', '>40']).astype(object)
+            
+        if 'Địa chỉ liên lạc' in df.columns: 
+            df['Tỉnh_LL'] = df['Địa chỉ liên lạc'].apply(get_tinh)
+        if 'Địa chỉ thường trú' in df.columns: 
+            df['Tỉnh_TT'] = df['Địa chỉ thường trú'].apply(get_tinh)
+        
+        obj_cols = df.select_dtypes(include=['object', 'string']).columns
+        df[obj_cols] = df[obj_cols].fillna('Chưa cập nhật')
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"⚠️ Lỗi tải dữ liệu SharePoint: {e}")
+        return pd.DataFrame()
 
 df = load_data()
 
 # --- BỘ LỌC DỮ LIỆU GỐC (LOẠI BỎ MSNV ẢO/NGHỈ TRƯỚC) ---
-if 'MSNV' in df.columns:
-    # Xoá các nhân sự không mong muốn khỏi toàn bộ báo cáo
+if len([c for c in df.columns if 'MSNV' in str(c).upper()]) > 0:
+    ten_cot_msnv = [c for c in df.columns if 'MSNV' in str(c).upper()][0]
     danh_sach_loai_tru = ['PN-000', 'IPC-039']
-    df = df[~df['MSNV'].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
-
+    df = df[~df[ten_cot_msnv].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
 
 # ==========================================
 # 3. SIDEBAR & LỌC TOÀN CỤC
@@ -166,41 +190,44 @@ if "Tất cả" not in f_chucdanh: df_base = df_base[df_base['Chức danh'].isin
 nam_vao_base = pd.to_numeric(df_base['Năm vào làm'], errors='coerce')
 nam_nghi_base = pd.to_numeric(df_base['Năm nghỉ'], errors='coerce')
 
+# Tổng nhân sự đang làm việc (Tính tất cả mọi người)
 condition_active = (nam_vao_base <= nam_phan_tich) & (nam_nghi_base.isna() | (nam_nghi_base > nam_phan_tich))
 df_active = df_base[condition_active].copy()
 total_emp = len(df_active)
 
-df_hires = df_base[nam_vao_base == nam_phan_tich].copy()
-df_terms = df_base[nam_nghi_base == nam_phan_tich].copy()
-hires_count = len(df_hires)
-terms_count = len(df_terms)
-net_change = hires_count - terms_count
-
+# --- BỘ LỌC CHỈ LẤY NHÂN SỰ CHÍNH THỨC ---
 is_intern_ctv = (
     df_base['Cấp bậc'].astype(str).str.lower().str.contains('intern|thực tập|sinh viên', na=False) | 
     df_base['HĐ hiện tại'].astype(str).str.lower().str.contains('thực tập|intern|ctv|cộng tác|thử việc', na=False)
 )
 df_contracted = df_base[~is_intern_ctv].copy()
+
 nam_vao_ct = pd.to_numeric(df_contracted['Năm vào làm'], errors='coerce')
 nam_nghi_ct = pd.to_numeric(df_contracted['Năm nghỉ'], errors='coerce')
 
+# TÍNH TOÁN TUYỂN MỚI & NGHỈ VIỆC (CHỈ ĐẾM NV CHÍNH THỨC)
+df_hires = df_contracted[nam_vao_ct == nam_phan_tich].copy()
+df_terms = df_contracted[nam_nghi_ct == nam_phan_tich].copy()
+
+hires_count = len(df_hires)
+terms_count = len(df_terms)
+net_change = hires_count - terms_count
+
+# TÍNH TOÁN TỶ LỆ
 hc_start_ct = len(df_contracted[(nam_vao_ct < nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct >= nam_phan_tich))])
-terms_ct = len(df_contracted[nam_nghi_ct == nam_phan_tich])
 hc_end_ct = len(df_contracted[(nam_vao_ct <= nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct > nam_phan_tich))])
 
 avg_hc_ct = (hc_start_ct + hc_end_ct) / 2
-turnover_rate = round((terms_ct / avg_hc_ct) * 100, 1) if avg_hc_ct > 0 else 0
-
-headcount_start_all = len(df_base[(nam_vao_base < nam_phan_tich) & (nam_nghi_base.isna() | (nam_nghi_base >= nam_phan_tich))])
-hiring_rate = round((hires_count / headcount_start_all) * 100, 1) if headcount_start_all > 0 else 0
+turnover_rate = round((terms_count / avg_hc_ct) * 100, 1) if avg_hc_ct > 0 else 0
+hiring_rate = round((hires_count / hc_start_ct) * 100, 1) if hc_start_ct > 0 else 0
 retention_rate = round(100 - turnover_rate, 1) if turnover_rate <= 100 else 0
 
+# TÍNH TOÁN TUỔI & THÂM NIÊN TB
 age_mean = pd.to_numeric(df_active['Tuổi'], errors='coerce').mean() if 'Tuổi' in df_active.columns else 0
 avg_age = round(age_mean, 1) if pd.notna(age_mean) else 0
 
 sen_mean = pd.to_numeric(df_active['Thâm niên 1'], errors='coerce').mean() if 'Thâm niên 1' in df_active.columns else 0
 avg_seniority = round(sen_mean, 1) if pd.notna(sen_mean) else 0
-
 
 # ==========================================
 # TRANG 1: EXECUTIVE DASHBOARD
