@@ -74,94 +74,52 @@ def get_tinh(address):
     if not parts: return 'Chưa xác định'
     return re.sub(r'^(tp\.|thành phố|tỉnh)\s+', '', parts[-1], flags=re.IGNORECASE).strip().title()
 
-def get_dynamic_font(text):
-    if len(str(text)) <= 15: return "text-3xl"
-    elif len(str(text)) <= 25: return "text-2xl"
-    else: return "text-xl"
-
 # ==========================================
 # 2. TẢI VÀ CHUẨN HÓA DỮ LIỆU
 # ==========================================
-import pandas as pd
-import streamlit as st
-import datetime
-import re
-import requests
-import io
-
-@st.cache_data(ttl=60)
+@st.cache_data
 def load_data():
-    excel_url = "https://dataimpact-my.sharepoint.com/:x:/g/personal/doan_thi_hong_an_dataimpact_vn/IQC8tnq16OngR75FkqADSHtqAf4aLNQooHvEjLCXycAAQ8E?download=1"
+    df = pd.read_excel('DataNhansuFinal.xlsx')
+    # Sửa lỗi ký tự ẩn BOM (\ufeff) nếu có
+    df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
     
-    try:
-        # Giả lập trình duyệt để vượt tường lửa SharePoint
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-        }
-        response = requests.get(excel_url, headers=headers)
-        response.raise_for_status() 
+    if 'Phòng ban' in df.columns: df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
+    if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
         
-        # Đọc dữ liệu từ bộ nhớ đệm
-        df = pd.read_excel(io.BytesIO(response.content))
+    for col in ['Tuổi', 'Thâm niên 1']:
+        if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Xoá ký tự ẩn BOM (\ufeff) và khoảng trắng thừa ở tên cột
-        df.columns = df.columns.str.replace('\n', ' ', regex=True).str.replace('\ufeff', '', regex=False).str.strip()
-        
-        if 'Phòng ban' in df.columns: 
-            df['Phòng ban'] = df['Phòng ban'].str.replace('TecHà Nộiology', 'Technology', case=False, regex=False)
+    date_cols = ['Ngày vào làm', 'Ngày làm việc cuối cùng', 'Ngày sinh', 'HĐ hiện tại đến', 'Thử việc đến', 'CTV đến', 'CTV từ', 'Thử việc từ', 'HĐLĐ lần 1 từ', 'HĐLĐ lần 2 từ', 'HĐLĐ vô thời hạn từ']
+    for d_col in date_cols:
+        if d_col in df.columns: df[d_col] = pd.to_datetime(df[d_col], errors='coerce')
             
-        if 'Thâm niên 1' not in df.columns and 'Thâm niên' in df.columns: 
-            df.rename(columns={'Thâm niên': 'Thâm niên 1'}, inplace=True)
-            
-        for col in ['Tuổi', 'Thâm niên 1']:
-            if col in df.columns: 
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                
-        date_cols = ['Ngày vào làm', 'Ngày làm việc cuối cùng', 'Ngày sinh', 'HĐ hiện tại đến', 'Thử việc đến', 'CTV đến', 'CTV từ', 'Thử việc từ', 'HĐLĐ lần 1 từ', 'HĐLĐ lần 2 từ', 'HĐLĐ vô thời hạn từ']
-        for d_col in date_cols:
-            if d_col in df.columns: 
-                df[d_col] = pd.to_datetime(df[d_col], errors='coerce', dayfirst=True)
-                
-        if 'Ngày vào làm' in df.columns:
-            df['Năm vào làm'] = df['Ngày vào làm'].dt.year
-            df['Tháng vào làm'] = df['Ngày vào làm'].dt.month
-        if 'Ngày làm việc cuối cùng' in df.columns:
-            df['Năm nghỉ'] = df['Ngày làm việc cuối cùng'].dt.year
-            df['Tháng nghỉ'] = df['Ngày làm việc cuối cùng'].dt.month
-        if 'Ngày sinh' in df.columns: 
-            df['Tháng sinh'] = df['Ngày sinh'].dt.month
-        
-        if 'Thâm niên 1' in df.columns: 
-            df['Nhóm thâm niên'] = pd.cut(df['Thâm niên 1'], bins=[-1, 0.5, 1, 3, 5, 10, 100], labels=['<6m', '6-12m', '1-3y', '3-5y', '5-10y', '>10y']).astype(object)
-        if 'Tuổi' in df.columns: 
-            df['Nhóm tuổi'] = pd.cut(df['Tuổi'], bins=[0, 24, 30, 35, 40, 100], labels=['<25', '25-30', '31-35', '36-40', '>40']).astype(object)
-            
-        if 'Địa chỉ liên lạc' in df.columns: 
-            df['Tỉnh_LL'] = df['Địa chỉ liên lạc'].apply(get_tinh)
-        if 'Địa chỉ thường trú' in df.columns: 
-            df['Tỉnh_TT'] = df['Địa chỉ thường trú'].apply(get_tinh)
-        
-        obj_cols = df.select_dtypes(include=['object', 'string']).columns
-        df[obj_cols] = df[obj_cols].fillna('Chưa cập nhật')
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"⚠️ Lỗi tải dữ liệu SharePoint: {e}")
-        return pd.DataFrame()
+    if 'Ngày vào làm' in df.columns:
+        df['Năm vào làm'] = df['Ngày vào làm'].dt.year
+        df['Tháng vào làm'] = df['Ngày vào làm'].dt.month
+    if 'Ngày làm việc cuối cùng' in df.columns:
+        df['Năm nghỉ'] = df['Ngày làm việc cuối cùng'].dt.year
+        df['Tháng nghỉ'] = df['Ngày làm việc cuối cùng'].dt.month
+    if 'Ngày sinh' in df.columns: df['Tháng sinh'] = df['Ngày sinh'].dt.month
+    
+    if 'Thâm niên 1' in df.columns: df['Nhóm thâm niên'] = pd.cut(df['Thâm niên 1'], bins=[-1, 0.5, 1, 3, 5, 10, 100], labels=['<6m', '6-12m', '1-3y', '3-5y', '5-10y', '>10y']).astype(object)
+    if 'Tuổi' in df.columns: df['Nhóm tuổi'] = pd.cut(df['Tuổi'], bins=[0, 24, 30, 35, 40, 100], labels=['<25', '25-30', '31-35', '36-40', '>40']).astype(object)
+    if 'Địa chỉ liên lạc' in df.columns: df['Tỉnh_LL'] = df['Địa chỉ liên lạc'].apply(get_tinh)
+    if 'Địa chỉ thường trú' in df.columns: df['Tỉnh_TT'] = df['Địa chỉ thường trú'].apply(get_tinh)
+    
+    obj_cols = df.select_dtypes(include=['object', 'string']).columns
+    df[obj_cols] = df[obj_cols].fillna('Chưa cập nhật')
+    return df
 
 df = load_data()
 
-# Bảo vệ App không bị sập nếu load data thất bại
-if df.empty:
-    st.warning("⛔ Không thể tải dữ liệu từ SharePoint. Đang chờ kết nối lại...")
-    st.stop()
-
 # --- BỘ LỌC DỮ LIỆU GỐC (LOẠI BỎ MSNV ẢO/NGHỈ TRƯỚC) ---
-if len([c for c in df.columns if 'MSNV' in str(c).upper()]) > 0:
-    ten_cot_msnv = [c for c in df.columns if 'MSNV' in str(c).upper()][0]
+# Tự động tìm cột MSNV dù bị dính khoảng trắng
+msnv_cols = [col for col in df.columns if 'MSNV' in str(col).upper()]
+if len(msnv_cols) > 0:
+    ten_cot_msnv = msnv_cols[0]
     danh_sach_loai_tru = ['PN-000', 'IPC-039']
     df = df[~df[ten_cot_msnv].astype(str).str.strip().str.upper().isin(danh_sach_loai_tru)].copy()
+
 
 # ==========================================
 # 3. SIDEBAR & LỌC TOÀN CỤC
@@ -206,17 +164,15 @@ condition_active = (nam_vao_base <= nam_phan_tich) & (nam_nghi_base.isna() | (na
 df_active = df_base[condition_active].copy()
 total_emp = len(df_active)
 
-# --- BỘ LỌC CHỈ LẤY NHÂN SỰ CHÍNH THỨC ---
+# --- BỘ TÍNH TOÁN CHỈ DÀNH CHO NHÂN SỰ CHÍNH THỨC ---
 is_intern_ctv = (
     df_base['Cấp bậc'].astype(str).str.lower().str.contains('intern|thực tập|sinh viên', na=False) | 
     df_base['HĐ hiện tại'].astype(str).str.lower().str.contains('thực tập|intern|ctv|cộng tác|thử việc', na=False)
 )
 df_contracted = df_base[~is_intern_ctv].copy()
-
 nam_vao_ct = pd.to_numeric(df_contracted['Năm vào làm'], errors='coerce')
 nam_nghi_ct = pd.to_numeric(df_contracted['Năm nghỉ'], errors='coerce')
 
-# Tính Tuyển Mới & Nghỉ Việc (Chỉ đếm NV Chính thức)
 df_hires = df_contracted[nam_vao_ct == nam_phan_tich].copy()
 df_terms = df_contracted[nam_nghi_ct == nam_phan_tich].copy()
 
@@ -224,7 +180,6 @@ hires_count = len(df_hires)
 terms_count = len(df_terms)
 net_change = hires_count - terms_count
 
-# Tính toán các tỷ lệ
 hc_start_ct = len(df_contracted[(nam_vao_ct < nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct >= nam_phan_tich))])
 hc_end_ct = len(df_contracted[(nam_vao_ct <= nam_phan_tich) & (nam_nghi_ct.isna() | (nam_nghi_ct > nam_phan_tich))])
 
@@ -232,12 +187,15 @@ avg_hc_ct = (hc_start_ct + hc_end_ct) / 2
 turnover_rate = round((terms_count / avg_hc_ct) * 100, 1) if avg_hc_ct > 0 else 0
 hiring_rate = round((hires_count / hc_start_ct) * 100, 1) if hc_start_ct > 0 else 0
 retention_rate = round(100 - turnover_rate, 1) if turnover_rate <= 100 else 0
+# ----------------------------------------------------
 
 age_mean = pd.to_numeric(df_active['Tuổi'], errors='coerce').mean() if 'Tuổi' in df_active.columns else 0
 avg_age = round(age_mean, 1) if pd.notna(age_mean) else 0
 
 sen_mean = pd.to_numeric(df_active['Thâm niên 1'], errors='coerce').mean() if 'Thâm niên 1' in df_active.columns else 0
 avg_seniority = round(sen_mean, 1) if pd.notna(sen_mean) else 0
+
+
 # ==========================================
 # TRANG 1: EXECUTIVE DASHBOARD
 # ==========================================
@@ -302,7 +260,7 @@ if page == "Executive Dashboard":
         </div>
     </body></html>
     """
-    components.html(html_p1, height=1150, scrolling=True)
+    components.html(html_p1, height=1150, scrolling=False)
 
 # ==========================================
 # TRANG 2: WORKFORCE ANALYTICS
@@ -319,15 +277,15 @@ elif page == "Workforce Analytics":
     uni_df = df_active[df_active['Tên trường'] != 'Chưa cập nhật']
     top_uni = uni_df['Tên trường'].mode()[0] if not uni_df.empty else "N/A"
 
-    lv_html, tn_html = "", ""
+    cb_html, tn_html = "", ""
     if 'Cấp bậc' in df_active.columns:
         colors = ['bg-[#0045d3]', 'bg-[#3260ec]', 'bg-[#82a6fe]', 'bg-[#c4c5d7]']
         cb_data = df_active[df_active['Cấp bậc']!='Chưa cập nhật']['Cấp bậc'].value_counts().head(4)
         max_cb = cb_data.max() if not cb_data.empty else 1
-        lv_html = '<div class="flex items-end gap-3 h-48 px-2">'
+        cb_html = '<div class="flex items-end gap-3 h-48 px-2">'
         for i, (lv, count) in enumerate(cb_data.items()):
-            lv_html += f'<div class="flex-1 flex flex-col justify-end items-center gap-2 group h-full"><div class="w-full {colors[i%4]} rounded-t-md relative transition-all group-hover:opacity-80" style="height: {int((count/max_cb)*80)+5}%;"><span class="absolute -top-5 w-full text-center text-[10px] font-bold text-[#1b1c1d] opacity-0 group-hover:opacity-100 transition-opacity">{count}</span></div><span class="text-[10px] uppercase font-bold text-[#434655] truncate w-full text-center" title="{lv}">{str(lv)[:6]}</span></div>'
-        lv_html += '</div>'
+            cb_html += f'<div class="flex-1 flex flex-col justify-end items-center gap-2 group h-full"><div class="w-full {colors[i%4]} rounded-t-md relative transition-all group-hover:opacity-80" style="height: {int((count/max_cb)*80)+5}%;"><span class="absolute -top-5 w-full text-center text-[10px] font-bold text-[#1b1c1d] opacity-0 group-hover:opacity-100 transition-opacity">{count}</span></div><span class="text-[10px] uppercase font-bold text-[#434655] truncate w-full text-center" title="{lv}">{str(lv)[:6]}</span></div>'
+        cb_html += '</div>'
             
     if 'Nhóm thâm niên' in df_active.columns:
         colors_tn = ['bg-[#dce1ff]', 'bg-[#82a6fe]', 'bg-[#3260ec]', 'bg-[#0045d3]', 'bg-[#ba4800]']
@@ -471,7 +429,7 @@ elif page == "Workforce Analytics":
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6 delay-3 animate-fade-in">
-            <section class="lg:col-span-5 bg-white border border-[#c4c5d7] p-6 rounded-xl card-shadow"><h3 class="text-base font-bold text-[#1b1c1d] mb-6">Cơ cấu Cấp bậc (Level)</h3>{lv_html}</section>
+            <section class="lg:col-span-5 bg-white border border-[#c4c5d7] p-6 rounded-xl card-shadow"><h3 class="text-base font-bold text-[#1b1c1d] mb-6">Cơ cấu Cấp bậc (Level)</h3>{cb_html}</section>
             <section class="lg:col-span-7 bg-white border border-[#c4c5d7] p-6 rounded-xl card-shadow"><h3 class="text-base font-bold text-[#1b1c1d] mb-6">Hệ sinh thái Công nghệ (Word Cloud)</h3><div class="flex flex-wrap gap-4 items-center justify-center h-48">{tech_html}</div></section>
         </div>
 
@@ -514,7 +472,6 @@ elif page == "Workforce Analytics":
 # TRANG 3: INTERN ANALYTICS
 # ==========================================
 elif page == "Intern Analytics":
-    
     is_intern_only = (
         df_base['Cấp bậc'].astype(str).str.lower().str.contains('intern|thực tập|sinh viên', na=False) |
         df_base['HĐ hiện tại'].astype(str).str.lower().str.contains('thực tập|intern|ctv|cộng tác', na=False)
@@ -542,26 +499,18 @@ elif page == "Intern Analytics":
         for dept, count in dept_counts.items():
             w_pct = int((count / max_dept) * 90) + 10
             dept_int_html += f'<div class="space-y-1"><div class="flex justify-between text-[11px] font-bold text-[#434655]"><span>{dept}</span><span>{count}</span></div><div class="w-full bg-[#f5f3f4] h-2.5 rounded-full overflow-hidden"><div class="bg-[#0045d3] h-full" style="width: {w_pct}%"></div></div></div>'
+
     team_int_html = ""
     if 'Nhóm' in df_int_year.columns and 'Phòng ban' in df_int_year.columns:
-        # 1. Tạo bản sao của cột 'Nhóm' để xử lý
         team_series = df_int_year['Nhóm'].copy()
-        
-        # 2. Xác định những người không có 'Nhóm' (Bị trống hoặc mang giá trị 'Chưa cập nhật')
         is_missing_team = team_series.isin(['Chưa cập nhật', '', 'NaN']) | team_series.isna()
-        
-        # 3. Lấy tên 'Phòng ban' đắp vào những người thiếu 'Nhóm'
         team_series.loc[is_missing_team] = df_int_year.loc[is_missing_team, 'Phòng ban']
-        
-        # 4. Nếu đắp xong mà Phòng ban cũng 'Chưa cập nhật' thì đổi tên thành 'Khác' cho chuyên nghiệp
         team_series = team_series.replace('Chưa cập nhật', 'Khác')
         
         colors = ['bg-[#0045d3]/80 text-white', 'bg-[#0045d3]/60 text-white', 'bg-[#0045d3]/40 text-white', 'bg-[#e3e2e3] text-[#1b1c1d]']
-        
-        # 5. Render ra giao diện
         for i, (team, count) in enumerate(team_series.value_counts().head(4).items()):
             team_int_html += f'<div class="{colors[i%4]} p-2 rounded flex flex-col justify-end text-[10px] font-bold truncate" title="{team}">{team} ({count})</div>'
- 
+
     major_html = ""
     if 'Chuyên ngành' in df_int_year.columns:
         m_data = df_int_year['Chuyên ngành'].value_counts().head(4)
@@ -593,46 +542,42 @@ elif page == "Intern Analytics":
         for i, (age, count) in enumerate(age_data.items()):
             h_pct = int((count/max_age)*85) + 10
             age_int_html += f'<div class="flex flex-col items-center gap-1 w-8"><div class="w-full {colors_age[i%4]} rounded-t transition hover:opacity-80" style="height: {h_pct}%;" title="{count} NV"></div><span class="text-[10px] text-[#434655] font-bold">{age}</span></div>'
-#TẠO DANH SÁCH INTERN CHI TIẾT ---
+
+    # --- HTML CHO BẢNG CHI TIẾT INTERN ---
     intern_list_html = ""
     for _, row in df_int_year.iterrows():
-        msnv = row.get('MSNV', 'N/A')
-        dept = row.get('Phòng ban', 'Chưa cập nhật')
-        team = row.get('Nhóm', 'Chưa cập nhật')
-        if pd.isna(team) or team in ['', 'Chưa cập nhật']:
-            team = dept # Lấy phòng ban nếu không có nhóm
-            
-        uni = row.get('Tên trường', 'Chưa cập nhật')
-        major = row.get('Chuyên ngành', 'Chưa cập nhật')
-        tinh_trang = row.get('Tình trạng', 'ON')
-        tham_nien = pd.to_numeric(row.get('Thâm niên 1', 0), errors='coerce')
-        if pd.isna(tham_nien): tham_nien = 0
+        msnv = row.get('MSNV', '')
+        chuc_danh = row.get('Chức danh', 'N/A')
+        phong_ban = row.get('Phòng ban', 'N/A')
+        truong = row.get('Tên trường', 'N/A')
+        ngay_vao = row['Ngày vào làm'].strftime('%d/%m/%Y') if pd.notna(row.get('Ngày vào làm')) else ''
+        thoi_gian = round(pd.to_numeric(row.get('Thâm niên 1', 0), errors='coerce'), 2)
+        tinh_trang_goc = str(row.get('Tình trạng', '')).strip().upper()
         
-        # Phân loại trạng thái (giống hệt logic tính Overview ở trên)
-        if tinh_trang != 'OFF':
-            status_text = "Active"
-            badge_class = "bg-[#dce1ff] text-[#0045d3]"
+        # Xác định Label trạng thái
+        if tinh_trang_goc != 'OFF':
+            status_badge = '<span class="px-2 py-1 bg-[#dce1ff] text-[#0045d3] rounded text-[10px] font-bold">Active</span>'
         else:
-            if tham_nien >= 0.15:
-                status_text = "Completed"
-                badge_class = "bg-[#c4c5d7] text-[#1b1c1d]"
+            if thoi_gian < 0.15:
+                status_badge = '<span class="px-2 py-1 bg-[#ffdad6] text-[#ba1a1a] rounded text-[10px] font-bold">Early Leave</span>'
             else:
-                status_text = "Early Leave"
-                badge_class = "bg-[#ffdad6] text-[#ba1a1a]"
+                status_badge = '<span class="px-2 py-1 bg-[#e3e2e3] text-[#434655] rounded text-[10px] font-bold">Completed</span>'
 
         intern_list_html += f"""
-        <tr class="hover:bg-[#f5f3f4] border-b border-[#e2e8f0] transition-colors">
-            <td class="p-3 font-bold text-[#1b1c1d]">{msnv}</td>
-            <td class="p-3 text-[12px] text-[#434655]"><div class="font-semibold text-[#1b1c1d] truncate w-[200px]" title="{uni}">{uni}</div><div class="text-[10px] text-[#747686] truncate w-[200px]" title="{major}">{major}</div></td>
-            <td class="p-3 text-[12px] text-[#434655]">{team}</td>
-            <td class="p-3 text-[12px] text-[#434655]">{round(tham_nien, 2)} năm</td>
-            <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase {badge_class}">{status_text}</span></td>
+        <tr class="border-b border-[#e2e8f0] hover:bg-[#f5f3f4] transition">
+            <td class="p-3 text-sm font-bold text-[#1b1c1d]">{msnv}</td>
+            <td class="p-3 text-sm text-[#434655] truncate max-w-[120px]">{chuc_danh}</td>
+            <td class="p-3 text-sm text-[#434655] truncate max-w-[150px]">{phong_ban}</td>
+            <td class="p-3 text-sm text-[#434655] truncate max-w-[150px]">{truong}</td>
+            <td class="p-3 text-sm text-[#434655]">{ngay_vao}</td>
+            <td class="p-3 text-sm text-[#434655] text-center font-semibold">{thoi_gian} năm</td>
+            <td class="p-3 text-center">{status_badge}</td>
         </tr>
         """
-        
+
     if df_int_year.empty:
-         intern_list_html = "<tr><td colspan='5' class='p-6 text-center text-[#747686] font-medium'>Không có dữ liệu thực tập sinh trong năm này.</td></tr>"
-   
+        intern_list_html = "<tr><td colspan='7' class='p-6 text-center text-sm text-[#747686]'>Không có dữ liệu Thực tập sinh trong năm này.</td></tr>"
+
     html_intern = f"""
     <!DOCTYPE html><html lang="vi"><head>{TAILWIND_HEAD}</head><body class="p-4 md:p-6 max-w-[1500px] mx-auto animate-fade-in">
         <header class="mb-8 flex flex-col md:flex-row justify-between items-end gap-4 border-b border-[#e2e8f0] pb-6">
@@ -667,21 +612,24 @@ elif page == "Intern Analytics":
                 <div class="bg-white p-6 rounded-xl border border-[#c4c5d7] card-shadow"><h4 class="font-bold text-sm mb-6 text-[#1b1c1d]">Age Distribution</h4><div class="h-32 flex items-end gap-4 justify-center border-b border-[#efedee]">{age_int_html}</div></div>
             </div>
         </section>
+
         <section class="space-y-6 animate-fade-in delay-3">
-            <h3 class="text-xl font-bold text-[#0045d3] flex items-center gap-2"><span class="material-symbols-outlined">format_list_bulleted</span> III. Intern Details Directory</h3>
+            <h3 class="text-xl font-bold text-[#0045d3] flex items-center gap-2"><span class="material-symbols-outlined">assignment_ind</span> III. Danh sách Thực tập sinh chi tiết</h3>
             <div class="bg-white p-0 rounded-xl border border-[#c4c5d7] card-shadow overflow-hidden">
-                <div class="overflow-x-auto custom-scrollbar max-h-[400px]">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-[#f5f3f4] sticky top-0 z-10 border-b border-[#c4c5d7]">
+                <div class="overflow-x-auto max-h-[400px] custom-scrollbar">
+                    <table class="w-full text-left text-sm relative">
+                        <thead class="bg-[#f5f3f4] sticky top-0 shadow-sm z-10 border-b border-[#e2e8f0]">
                             <tr>
-                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">MSNV</th>
-                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Trường / Chuyên ngành</th>
-                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Team / Phòng ban</th>
-                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Thâm niên</th>
-                                <th class="p-4 uppercase text-[11px] font-bold text-[#434655]">Trạng thái</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap">MSNV</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap">Chức danh</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap">Phòng/Nhóm</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap">Trường ĐH</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap">Ngày vào</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap text-center">Tích luỹ</th>
+                                <th class="p-3 uppercase text-[#434655] font-bold text-[11px] whitespace-nowrap text-center">Trạng thái</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-[#e2e8f0]">
+                        <tbody>
                             {intern_list_html}
                         </tbody>
                     </table>
@@ -710,7 +658,7 @@ elif page == "Attrition & Recruitment":
         </div>
     </div></body></html>
     """
-    components.html(html_p3, height=230, scrolling=True)
+    components.html(html_p3, height=230, scrolling=False)
 
     st.markdown(create_card("Phân tích Tuyển dụng", "person_add", "#3260ec"), unsafe_allow_html=True)
     r1c1, r1c2 = st.columns([7, 5])
@@ -723,7 +671,7 @@ elif page == "Attrition & Recruitment":
             chart_wrapper(f"Tuyển mới theo tháng ({nam_phan_tich})", fig_h1, height=220)
         
     with r1c2:
-        s_nam_vao = pd.to_numeric(df_base['Năm vào làm'], errors='coerce').dropna().astype(int)
+        s_nam_vao = pd.to_numeric(df_contracted['Năm vào làm'], errors='coerce').dropna().astype(int)
         if not s_nam_vao.empty:
             yearly_hires = s_nam_vao.value_counts().sort_index().reset_index()
             yearly_hires.columns = ['Năm', 'Tuyển mới']
@@ -841,7 +789,6 @@ elif page == "Attrition & Recruitment":
 # TRANG 5: CONTRACT & HR ALERTS
 # ==========================================
 elif page == "Contract & HR Alerts":
-
     today = datetime.datetime.now()
     current_month = today.month
     next_30 = today + datetime.timedelta(days=30)
